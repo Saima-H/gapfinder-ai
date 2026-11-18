@@ -1,95 +1,54 @@
-
-## 📐 System Architecture
-
-```mermaid
-flowchart LR
-    User([👤 User]) -->|Opens browser| FE["Next.js Frontend :3000<br/>Dashboard · Add Form · Filter"]
-    FE -->|HTTP Request<br/>GET / POST / DELETE| CORS{{CORS Middleware}}
-    CORS --> BE["FastAPI Backend :8000<br/>CRUD + Smart Endpoint"]
-    BE -->|SQL Query| DB[("SQLite(initially later update to postgresql) Database<br/>ideas · tags · idea_tags")]
-    BE -->|If tags requested| AI{"Smart Tag<br/>Generator"}
-    AI -->|Mock NLP or| LLM[LLM API<br/>OpenAI / Claude]
-    DB -->|Return data| BE
-    BE -->|JSON Response| CORS
-    CORS --> FE
-    FE -->|Rendered UI| User
-```
-
-
-## 🔄 User Flow
+## 🏗️ System Architecture
 
 ```mermaid
 flowchart TD
-    Start([User opens Idea Vault]) --> ViewAll[See all saved ideas]
-    ViewAll --> Choice{What do you want to do?}
+    subgraph Frontend ["Next.js Frontend (TypeScript)"]
+        UI["Student Dashboard<br/>(Upload, Quiz, Chat)"]
+        Auth["Supabase Auth<br/>(JWT Login)"]
+    end
 
-    Choice -->|Add idea| AddForm[Fill form:<br/>text or URL]
-    AddForm --> GenTags[Click ✨ Generate Tags]
-    GenTags --> ShowTags[Show 2-3 suggested tags]
-    ShowTags --> Save[Click Save]
-    Save --> PostAPI[POST /ideas<br/>to FastAPI]
-    PostAPI --> StoreDB[(Save to DB)]
-    StoreDB --> ViewAll
+    subgraph Backend ["FastAPI Backend (Python)"]
+        API["API Endpoints"]
+        Parser["PDF Parser & Chunker"]
+        Embedder["OpenAI Embedding Engine"]
+        RAG["RAG Retrieval Engine"]
+        Evaluator["Answer Evaluator"]
+    end
 
-    Choice -->|Filter| PickTag[Pick a tag]
-    PickTag --> FilterAPI[GET /ideas?tag=xyz]
-    FilterAPI --> ShowFiltered[Show filtered list]
-    ShowFiltered --> ViewAll
+    subgraph Database ["Supabase (PostgreSQL)"]
+        Relational[("Relational Tables<br/>(Users, Materials, Quizzes)")]
+        VectorDB[("pgvector<br/>(Document Chunks & Embeddings)")]
+    end
 
-    Choice -->|Delete| PickIdea[Pick an idea]
-    PickIdea --> DelAPI[DELETE /ideas/:id]
-    DelAPI --> ViewAll
-```
+    subgraph External ["External AI"]
+        OpenAI["OpenAI API<br/>(text-embedding-3-small & gpt-4o-mini)"]
+    end
 
+    %% Flows
+    UI -->|1. Login| Auth
+    UI -->|2. Upload PDF / Take Quiz| API
+    
+    API -->|3. Extract Text| Parser
+    Parser -->|4. Generate Vectors| Embedder
+    Embedder -->|5. Store Vectors| VectorDB
+    Embedder -->|API Call| OpenAI
+    
+    API -->|6. Request Quiz Question| RAG
+    RAG -->|7. Search Relevant Context| VectorDB
+    RAG -->|8. Generate Grounded Question| OpenAI
+    
+    API -->|9. Submit Answer| Evaluator
+    Evaluator -->|10. Evaluate & Explain| OpenAI
+    Evaluator -->|11. Save Results| Relational
+    
+    API -->|12. Save Metadata| Relational
 
-## 🗄️ Database Schema
+    classDef frontend fill:#3498db,color:#fff,stroke:#2980b9,stroke-width:2px;
+    classDef backend fill:#e67e22,color:#fff,stroke:#d35400,stroke-width:2px;
+    classDef db fill:#2ecc71,color:#fff,stroke:#27ae60,stroke-width:2px;
+    classDef external fill:#9b59b6,color:#fff,stroke:#8e44ad,stroke-width:2px;
 
-```mermaid
-erDiagram
-    USERS ||--o{ IDEAS : creates
-    IDEAS ||--o{ IDEA_TAGS : has
-    TAGS ||--o{ IDEA_TAGS : labeled
-
-    USERS {
-        int id PK
-        string username
-        string email
-        datetime created_at
-    }
-
-    IDEAS {
-        int id PK
-        int user_id FK
-        text content
-        string url
-        datetime created_at
-    }
-
-    TAGS {
-        int id PK
-        string name
-    }
-
-    IDEA_TAGS {
-        int idea_id FK
-        int tag_id FK
-    }
-```
-
----
-
-## ⚡ Simple Linear Overview
-
-```mermaid
-flowchart LR
-    A[👤 User] --> B[Next.js<br/>Frontend]
-    B --> C[FastAPI<br/>Backend]
-    C --> D[(SQLite<br/>Database)]
-    C --> E[🤖 Smart Tag<br/>Generator]
-    E --> C
-    D --> C
-    C --> B
-    B --> A
-```
-
----
+    class UI,Auth frontend;
+    class API,Parser,Embedder,RAG,Evaluator backend;
+    class Relational,VectorDB db;
+    class OpenAI external;
